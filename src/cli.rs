@@ -41,6 +41,7 @@ pub fn run_cli(interrupt_fd: RawFd) {
 
     let mut line = String::with_capacity(256);
     let mut last_screenshot = Instant::now() - Duration::from_secs(1);
+    let mut cursor_pos: (i32, i32) = (0, 0);
 
     writeln!(out, "ccpay-human-commander ready. Type 'help' for commands.").ok();
 
@@ -63,7 +64,7 @@ pub fn run_cli(interrupt_fd: RawFd) {
             continue;
         }
 
-        match dispatch(interrupt_fd, trimmed, &mut out, &mut last_screenshot) {
+        match dispatch(interrupt_fd, trimmed, &mut out, &mut last_screenshot, &mut cursor_pos) {
             CliAction::Continue => {}
             CliAction::Quit => break,
         }
@@ -77,7 +78,7 @@ enum CliAction {
     Quit,
 }
 
-fn dispatch(fd: RawFd, input: &str, out: &mut impl Write, last_screenshot: &mut Instant) -> CliAction {
+fn dispatch(fd: RawFd, input: &str, out: &mut impl Write, last_screenshot: &mut Instant, cursor_pos: &mut (i32, i32)) -> CliAction {
     // Split at most into 2 parts to preserve spaces in typed text.
     let (cmd, rest) = input
         .split_once(char::is_whitespace)
@@ -103,6 +104,9 @@ fn dispatch(fd: RawFd, input: &str, out: &mut impl Write, last_screenshot: &mut 
             writeln!(out, "    drag <from_x> <to_x> <y> <hold_ms> - vuốt giữ và thả"   ).ok();
             writeln!(out, "    wheel <delta> - cuộn bánh xe chuột"                    ).ok();
             writeln!(out, "    move <offset_x> <offset_y> - di chuyển con trỏ tương đối").ok();
+            writeln!(out, "    goto <x> <y>               - di chuyển đến tọa độ tuyệt đối (cần cursor reset trước)").ok();
+            writeln!(out, "    cursor pos                 - xem vị trí con trỏ hiện tại").ok();
+            writeln!(out, "    cursor reset               - đưa con trỏ về góc trên trái (0,0)").ok();
             writeln!(out, "").ok();
             writeln!(out, "  Macro tự động:").ok();
             writeln!(out, "    macro download-image   - mở URL ảnh trong Chrome và tải về").ok();
@@ -196,10 +200,50 @@ fn dispatch(fd: RawFd, input: &str, out: &mut impl Write, last_screenshot: &mut 
                 if let Err(e) = hid::mouse::send_move(fd, dx, dy) {
                     eprintln!("[cli] move error: {e}");
                 } else {
-                    writeln!(out, "[cli] move sent: dx={dx} dy={dy}").ok();
+                    cursor_pos.0 += dx as i32;
+                    cursor_pos.1 += dy as i32;
+                    writeln!(out, "[cli] move sent: dx={dx} dy={dy} → pos=({},{})", cursor_pos.0, cursor_pos.1).ok();
                 }
             } else {
                 writeln!(out, "[cli] move offsets must be signed integers").ok();
+            }
+        }
+
+        "cursor" => {
+            match rest.to_ascii_lowercase().as_str() {
+                "pos" | "" => {
+                    writeln!(out, "[cursor] vị trí hiện tại: x={} y={}", cursor_pos.0, cursor_pos.1).ok();
+                }
+                "reset" | "home" => {
+                    if let Err(e) = hid::mouse::send_cursor_home(fd) {
+                        eprintln!("[cursor] reset error: {e}");
+                    } else {
+                        *cursor_pos = (0, 0);
+                        writeln!(out, "[cursor] đã đưa con trỏ về góc trên trái (0, 0).").ok();
+                    }
+                }
+                other => {
+                    writeln!(out, "[cursor] lệnh không hợp lệ: {other:?}").ok();
+                    writeln!(out, "[cursor] các lệnh: cursor pos | cursor reset").ok();
+                }
+            }
+        }
+
+        "goto" => {
+            let parts: Vec<&str> = rest.split_whitespace().collect();
+            if parts.len() != 2 {
+                writeln!(out, "[cli] usage: goto <x> <y>  (cần chạy 'cursor reset' trước)").ok();
+            } else if let (Ok(tx), Ok(ty)) = (parts[0].parse::<i32>(), parts[1].parse::<i32>()) {
+                let dx = tx - cursor_pos.0;
+                let dy = ty - cursor_pos.1;
+                if let Err(e) = hid::mouse::send_delta(fd, dx, dy) {
+                    eprintln!("[cli] goto error: {e}");
+                } else {
+                    *cursor_pos = (tx, ty);
+                    writeln!(out, "[cli] goto: đã di chuyển đến ({tx}, {ty}) — delta ({dx}, {dy})").ok();
+                }
+            } else {
+                writeln!(out, "[cli] goto coordinates must be integers").ok();
             }
         }
 

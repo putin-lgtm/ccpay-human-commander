@@ -101,3 +101,26 @@ pub fn send_move(interrupt_fd: RawFd, offset_x: i16, offset_y: i16) -> io::Resul
     // idle report so the device registers the new focus position
     send_mouse_report(interrupt_fd, 0x00, 0, 0, 0)
 }
+
+/// Park the cursor at the top-left corner of the screen by sending a large
+/// negative delta that exceeds any phone screen dimension.
+/// After this call the caller should reset its virtual cursor position to (0, 0).
+pub fn send_cursor_home(interrupt_fd: RawFd) -> io::Result<()> {
+    // -10000 on each axis exceeds any current Android device screen dimension
+    send_mouse_report(interrupt_fd, 0x00, -10000_i16, -10000_i16, 0)?;
+    send_mouse_report(interrupt_fd, 0x00, 0, 0, 0)
+}
+
+/// Move the cursor by an i32 delta (handles deltas larger than i16::MAX by
+/// splitting into two reports, which may arise when jumping across a large screen).
+pub fn send_delta(interrupt_fd: RawFd, dx: i32, dy: i32) -> io::Result<()> {
+    let cx = dx.clamp(-32767, 32767) as i16;
+    let cy = dy.clamp(-32767, 32767) as i16;
+    send_move(interrupt_fd, cx, cy)?;
+    let rem_x = dx - cx as i32;
+    let rem_y = dy - cy as i32;
+    if rem_x != 0 || rem_y != 0 {
+        send_move(interrupt_fd, rem_x.clamp(-32767, 32767) as i16, rem_y.clamp(-32767, 32767) as i16)?;
+    }
+    Ok(())
+}

@@ -48,12 +48,12 @@ pub const HID_SDP_RECORD: &str = r#"<?xml version="1.0" encoding="UTF-8" ?>
 
   <!-- ServiceName -->
   <attribute id="0x0100">
-    <text value="Standard Bluetooth Keyboard"/>
+    <text value="Standard Bluetooth Keyboard+Mouse"/>
   </attribute>
 
   <!-- ServiceDescription -->
   <attribute id="0x0101">
-    <text value="Keyboard"/>
+    <text value="Keyboard/Mouse Combo"/>
   </attribute>
 
   <!-- ProviderName -->
@@ -66,9 +66,9 @@ pub const HID_SDP_RECORD: &str = r#"<?xml version="1.0" encoding="UTF-8" ?>
     <uint16 value="0x0111"/>
   </attribute>
 
-  <!-- HIDDeviceSubclass: Keyboard (0x40) -->
+  <!-- HIDDeviceSubclass: Keyboard+Mouse combo (0xC0) -->
   <attribute id="0x0202">
-    <uint8 value="0x40"/>
+    <uint8 value="0xC0"/>
   </attribute>
 
   <!-- HIDCountryCode -->
