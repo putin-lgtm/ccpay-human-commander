@@ -76,7 +76,7 @@ enum CliAction {
     Quit,
 }
 
-fn dispatch(fd: RawFd, input: &str, out: &mut impl Write) -> CliAction {
+fn dispatch(fd: RawFd, input: &str, out: &mut impl Write, last_screenshot: &mut Instant) -> CliAction {
     // Split at most into 2 parts to preserve spaces in typed text.
     let (cmd, rest) = input
         .split_once(char::is_whitespace)

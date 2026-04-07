@@ -20,8 +20,11 @@
 use std::io;
 use std::thread::sleep;
 use std::time::Duration;
+use rand::Rng;
 #[cfg(target_os = "linux")]
 use libc::{c_int as RawFd, send, MSG_NOSIGNAL};
+
+pub mod mouse;
 
 /// On Linux, RawFd is libc::c_int. This re-export keeps the rest of the
 /// module compiling on any host.
