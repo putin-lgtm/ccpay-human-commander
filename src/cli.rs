@@ -20,6 +20,7 @@
 /// | `quit` / `exit`  | Disconnect and exit                         |
 
 use std::io::{self, BufRead, Write};
+use std::time::{Duration, Instant};
 #[cfg(target_os = "linux")]
 use libc::c_int as RawFd;
 #[cfg(not(target_os = "linux"))]
@@ -38,6 +39,7 @@ pub fn run_cli(interrupt_fd: RawFd) {
     let mut out = stdout.lock();
 
     let mut line = String::with_capacity(256);
+    let mut last_screenshot = Instant::now() - Duration::from_secs(1);
 
     writeln!(out, "ccpay-human-commander ready. Type 'help' for commands.").ok();
 
@@ -60,7 +62,7 @@ pub fn run_cli(interrupt_fd: RawFd) {
             continue;
         }
 
-        match dispatch(interrupt_fd, trimmed, &mut out) {
+        match dispatch(interrupt_fd, trimmed, &mut out, &mut last_screenshot) {
             CliAction::Continue => {}
             CliAction::Quit => break,
         }
@@ -95,6 +97,11 @@ fn dispatch(fd: RawFd, input: &str, out: &mut impl Write) -> CliAction {
             writeln!(out, "    home-android         - về màn hình chính (KEYCODE_HOME)" ).ok();
             writeln!(out, "    volup / voldown       - âm lượng"                         ).ok();
             writeln!(out, ""                                                           ).ok();
+            writeln!(out, "  Swipe chuột ảo:"                                         ).ok();
+            writeln!(out, "    swipe <from_x> <to_x> <y> - vuốt ảo bằng HID Mouse"     ).ok();
+            writeln!(out, "    drag <from_x> <to_x> <y> <hold_ms> - vuốt giữ và thả"   ).ok();
+            writeln!(out, "    wheel <delta> - cuộn bánh xe chuột"                    ).ok();
+            writeln!(out, ""                                                           ).ok();
             writeln!(out, "  Chụp màn hình Samsung:"                                    ).ok();
             writeln!(out, "    ss / screenshot      - Phím Print Screen (Samsung One UI)").ok();
             writeln!(out, "    ss-samsung           - Ctrl+Shift+S (Samsung + bàn phím BT)").ok();
@@ -118,11 +125,60 @@ fn dispatch(fd: RawFd, input: &str, out: &mut impl Write) -> CliAction {
             }
         }
 
+        "swipe" => {
+            let parts: Vec<&str> = rest.split_whitespace().collect();
+            if parts.len() != 3 {
+                writeln!(out, "[cli] usage: swipe <from_x> <to_x> <y>").ok();
+            } else if let (Ok(from_x), Ok(to_x), Ok(y)) = (parts[0].parse::<i16>(), parts[1].parse::<i16>(), parts[2].parse::<i16>()) {
+                if let Err(e) = hid::mouse::send_swipe(fd, from_x, to_x, y) {
+                    eprintln!("[cli] swipe error: {e}");
+                } else {
+                    writeln!(out, "[cli] swipe sent: {from_x} -> {to_x} @ {y}").ok();
+                }
+            } else {
+                writeln!(out, "[cli] swipe parameters must be integers").ok();
+            }
+        }
+
+        "drag" => {
+            let parts: Vec<&str> = rest.split_whitespace().collect();
+            if parts.len() != 4 {
+                writeln!(out, "[cli] usage: drag <from_x> <to_x> <y> <hold_ms>").ok();
+            } else if let (Ok(from_x), Ok(to_x), Ok(y), Ok(hold_ms)) = (
+                parts[0].parse::<i16>(),
+                parts[1].parse::<i16>(),
+                parts[2].parse::<i16>(),
+                parts[3].parse::<u64>(),
+            ) {
+                if let Err(e) = hid::mouse::send_drag_hold(fd, from_x, to_x, y, hold_ms) {
+                    eprintln!("[cli] drag error: {e}");
+                } else {
+                    writeln!(out, "[cli] drag sent: {from_x} -> {to_x} @ {y}, hold {hold_ms}ms").ok();
+                }
+            } else {
+                writeln!(out, "[cli] drag parameters must be integers").ok();
+            }
+        }
+
+        "wheel" => {
+            if rest.is_empty() {
+                writeln!(out, "[cli] usage: wheel <delta>").ok();
+            } else if let Ok(delta) = rest.parse::<i8>() {
+                if let Err(e) = hid::mouse::send_wheel(fd, delta) {
+                    eprintln!("[cli] wheel error: {e}");
+                } else {
+                    writeln!(out, "[cli] wheel sent: {delta}").ok();
+                }
+            } else {
+                writeln!(out, "[cli] wheel delta must be a signed integer").ok();
+            }
+        }
+
         "key" => {
             if rest.is_empty() {
                 writeln!(out, "[cli] usage: key <name>").ok();
             } else {
-                send_named_key(fd, rest, out);
+                send_named_key(fd, rest, out, &mut last_screenshot);
             }
         }
 
@@ -142,7 +198,7 @@ enum KeyAction {
 }
 
 /// Resolve a key name string and dispatch the appropriate HID report(s).
-fn send_named_key(fd: RawFd, name: &str, out: &mut impl Write) {
+fn send_named_key(fd: RawFd, name: &str, out: &mut impl Write, last_screenshot: &mut Instant) {
     let action: Option<KeyAction> = match name.to_ascii_lowercase().as_str() {
         // ── Phím Android (HID Consumer Control, Report ID 2) ───────────────────
         "back"                                  => Some(KeyAction::Consumer(hid::ConsumerKey::Back)),
@@ -247,6 +303,12 @@ fn send_named_key(fd: RawFd, name: &str, out: &mut impl Write) {
             writeln!(out, "[cli] key sent: {name}").ok();
         }
         Some(KeyAction::SamsungScreenshot) => {
+            let now = Instant::now();
+            if now.duration_since(*last_screenshot) < Duration::from_secs(1) {
+                writeln!(out, "[cli] screenshot rate limit: wait at least 1s between screenshot commands").ok();
+                return;
+            }
+            *last_screenshot = now;
             if let Err(e) = hid::samsung_screenshot(fd) {
                 eprintln!("[cli] screenshot error: {e}");
                 return;

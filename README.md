@@ -52,6 +52,7 @@
 | `src/profile.rs` | Đăng ký HID profile với BlueZ thông qua D-Bus (`org.bluez.ProfileManager1`) |
 | `src/l2cap.rs` | Tạo và kết nối raw L2CAP socket qua `libc` (PSM 17 — Control, PSM 19 — Interrupt) |
 | `src/hid.rs` | Định dạng và gửi HID Input Report 8 byte; ánh xạ ký tự ASCII → keycode USB HID |
+| `src/hid/mouse.rs` | Định dạng và gửi HID Mouse Report; hỗ trợ vuốt ảo (swipe) |
 | `src/cli.rs` | Vòng lặp lệnh tương tác — nhận lệnh từ stdin và gửi phím tương ứng |
 
 ---
@@ -88,6 +89,8 @@
 - **Bluetooth**: BlueZ ≥ 5.50 (`bluetoothd` đang chạy)
 - **Rust**: ≥ 1.75 (edition 2021)
 - **Quyền**: `CAP_NET_RAW` hoặc chạy với `sudo` để tạo raw Bluetooth socket
+- **Typing fuzz**: gom random delay mỗi ký tự để tránh mẫu gõ quá đều và phát hiện thao tác tự động.
+- **Ẩn dấu vết**: Trên Ubuntu, tắt log `bluetoothd` hoặc cấu hình `LogLevel = none` trong `/etc/bluetooth/main.conf` để tránh ghi lại MAC và thời gian thao tác.
 
 ### Cài đặt BlueZ (Ubuntu/Debian)
 ```bash
@@ -224,8 +227,13 @@ ccpay-human-commander ready. Type 'help' for commands.
 | `key f1` … `key f12` | Phím chức năng | `key f5` |
 | `key a` … `key z` | Phím chữ cái | `key a` |
 | `key 0` … `key 9` | Phím số | `key 3` |
+| `swipe <from_x> <to_x> <y>` | Vuốt ảo bằng HID Mouse | `swipe 0 400 20` |
+| `drag <from_x> <to_x> <y> <hold_ms>` | Vuốt giữ và thả | `drag 0 400 20 120` |
+| `wheel <delta>` | Cuộn bánh xe chuột | `wheel -3` |
 | `help` | Hiển thị trợ giúp | `help` |
 | `quit` hoặc `exit` | Ngắt kết nối và thoát | `quit` |
+
+> **Lưu ý**: `ss` / `ss-samsung` bị giới hạn tần suất 1 lần mỗi giây để tránh trigger hệ thống phòng thủ.
 
 ### Ví dụ phiên sử dụng thực tế
 
@@ -251,8 +259,11 @@ ccpay-human-commander ready. Type 'help' for commands.
 > key ss-samsung
 [cli] Samsung screenshot sent (Ctrl+Shift+S)
 
-> key volup
-[cli] key sent: volup
+> `drag 0 400 20 120`
+[cli] drag sent: 0 -> 400 @ 20, hold 120ms
+
+> `wheel -3`
+[cli] wheel sent: -3
 
 > quit
 Disconnecting.

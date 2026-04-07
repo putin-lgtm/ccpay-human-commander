@@ -10,6 +10,7 @@ zbus = { version = "4", default-features = false, features = ["tokio"] }
 tokio = { version = "1", features = ["full"] }
 libc = "0.2"
 zvariant = "4"
+rand = "0.8"
 
 [[bin]]
 name = "ccpay-human-commander"

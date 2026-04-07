@@ -266,8 +266,11 @@ pub fn type_char(interrupt_fd: RawFd, ch: char) -> io::Result<()> {
 
 /// Type a string one character at a time.
 pub fn type_string(interrupt_fd: RawFd, s: &str) -> io::Result<()> {
+    let mut rng = rand::thread_rng();
     for ch in s.chars() {
         type_char(interrupt_fd, ch)?;
+        let pause_ms = rng.gen_range(20..70);
+        sleep(Duration::from_millis(pause_ms));
     }
     Ok(())
 }
