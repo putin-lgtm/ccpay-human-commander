@@ -93,3 +93,11 @@ pub fn send_wheel(interrupt_fd: RawFd, amount: i8) -> io::Result<()> {
     send_mouse_report(interrupt_fd, 0x00, 0, 0, amount)?;
     send_mouse_report(interrupt_fd, 0x00, 0, 0, 0)
 }
+
+/// Move the cursor by a relative offset (offset_x, offset_y) from the current
+/// pointer position, without pressing any button.
+pub fn send_move(interrupt_fd: RawFd, offset_x: i16, offset_y: i16) -> io::Result<()> {
+    send_mouse_report(interrupt_fd, 0x00, offset_x, offset_y, 0)?;
+    // idle report so the device registers the new focus position
+    send_mouse_report(interrupt_fd, 0x00, 0, 0, 0)
+}

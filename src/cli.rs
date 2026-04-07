@@ -101,6 +101,7 @@ fn dispatch(fd: RawFd, input: &str, out: &mut impl Write, last_screenshot: &mut 
             writeln!(out, "    swipe <from_x> <to_x> <y> - vuốt ảo bằng HID Mouse"     ).ok();
             writeln!(out, "    drag <from_x> <to_x> <y> <hold_ms> - vuốt giữ và thả"   ).ok();
             writeln!(out, "    wheel <delta> - cuộn bánh xe chuột"                    ).ok();
+            writeln!(out, "    move <offset_x> <offset_y> - di chuyển con trỏ tương đối").ok();
             writeln!(out, ""                                                           ).ok();
             writeln!(out, "  Chụp màn hình Samsung:"                                    ).ok();
             writeln!(out, "    ss / screenshot      - Phím Print Screen (Samsung One UI)").ok();
@@ -171,6 +172,21 @@ fn dispatch(fd: RawFd, input: &str, out: &mut impl Write, last_screenshot: &mut 
                 }
             } else {
                 writeln!(out, "[cli] wheel delta must be a signed integer").ok();
+            }
+        }
+
+        "move" => {
+            let parts: Vec<&str> = rest.split_whitespace().collect();
+            if parts.len() != 2 {
+                writeln!(out, "[cli] usage: move <offset_x> <offset_y>").ok();
+            } else if let (Ok(dx), Ok(dy)) = (parts[0].parse::<i16>(), parts[1].parse::<i16>()) {
+                if let Err(e) = hid::mouse::send_move(fd, dx, dy) {
+                    eprintln!("[cli] move error: {e}");
+                } else {
+                    writeln!(out, "[cli] move sent: dx={dx} dy={dy}").ok();
+                }
+            } else {
+                writeln!(out, "[cli] move offsets must be signed integers").ok();
             }
         }
 
