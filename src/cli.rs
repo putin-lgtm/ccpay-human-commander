@@ -178,7 +178,7 @@ fn dispatch(fd: RawFd, input: &str, out: &mut impl Write, last_screenshot: &mut 
             if rest.is_empty() {
                 writeln!(out, "[cli] usage: key <name>").ok();
             } else {
-                send_named_key(fd, rest, out, &mut last_screenshot);
+                send_named_key(fd, rest, out, last_screenshot);
             }
         }
 
