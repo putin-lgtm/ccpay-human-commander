@@ -18,6 +18,8 @@
 /// USB HID Usage Table keycodes defined in `KeyCode` and `ConsumerKey` enums.
 
 use std::io;
+use std::thread::sleep;
+use std::time::Duration;
 #[cfg(target_os = "linux")]
 use libc::{c_int as RawFd, send, MSG_NOSIGNAL};
 
@@ -188,6 +190,11 @@ pub fn build_consumer_release() -> [u8; 4] {
 pub fn consumer_key_tap(interrupt_fd: RawFd, key: ConsumerKey) -> io::Result<()> {
     let press = build_consumer_report(key);
     send_report(interrupt_fd, &press)?;
+
+    // Some Android OEMs require a small delay between press and release
+    // on Consumer Control keys such as Recent Apps.
+    sleep(Duration::from_millis(50));
+
     let release = build_consumer_release();
     send_report(interrupt_fd, &release)
 }
