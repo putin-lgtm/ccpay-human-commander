@@ -255,6 +255,33 @@ fn dispatch(fd: RawFd, input: &str, out: &mut impl Write, last_screenshot: &mut 
             }
         }
 
+        // "mouse <sub> [args]" — prefix thân thiện hơn cho các lệnh chuột
+        "mouse" => {
+            // Tái sử dụng logic dispatch bằng cách ghép lại input đã tách
+            let (sub, sub_rest) = rest
+                .split_once(char::is_whitespace)
+                .map(|(a, b)| (a, b.trim()))
+                .unwrap_or((rest, ""));
+            let forwarded = if sub_rest.is_empty() {
+                sub.to_string()
+            } else {
+                format!("{sub} {sub_rest}")
+            };
+            // Ánh xạ: "mouse move/goto/wheel/swipe/drag/cursor/reset/pos" → lệnh gốc
+            let mapped = match sub.to_ascii_lowercase().as_str() {
+                "move"   => format!("move {sub_rest}"),
+                "goto"   => format!("goto {sub_rest}"),
+                "wheel"  => format!("wheel {sub_rest}"),
+                "swipe"  => format!("swipe {sub_rest}"),
+                "drag"   => format!("drag {sub_rest}"),
+                "reset" | "home" => "cursor reset".to_string(),
+                "pos"            => "cursor pos".to_string(),
+                "cursor"         => format!("cursor {sub_rest}"),
+                _ => forwarded,
+            };
+            return dispatch(fd, mapped.trim(), out, last_screenshot, cursor_pos);
+        }
+
         other => {
             writeln!(out, "[cli] unknown command: {other:?}. Type 'help'.").ok();
         }
