@@ -33,7 +33,20 @@ async fn main() {
         Ok(c) => c,
         Err(e) => {
             eprintln!("[main] Failed to register HID profile: {e}");
-            eprintln!("[main] Ensure BlueZ is running (bluetoothd) and you have sufficient permissions.");
+            if e.to_string().contains("UUID already registered") {
+                eprintln!();
+                eprintln!("[main] === FIX REQUIRED ===");
+                eprintln!("[main] BlueZ's built-in 'input' plugin has already claimed UUID 0x1124.");
+                eprintln!("[main] Disable it by adding the following to /etc/bluetooth/main.conf:");
+                eprintln!();
+                eprintln!("         [Policy]");
+                eprintln!("         DisablePlugins = input");
+                eprintln!();
+                eprintln!("[main] Then restart BlueZ:  sudo systemctl restart bluetooth");
+                eprintln!("[main] Then run this app again.");
+            } else {
+                eprintln!("[main] Ensure BlueZ is running (bluetoothd) and you have sufficient permissions.");
+            }
             std::process::exit(1);
         }
     };
