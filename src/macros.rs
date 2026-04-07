@@ -121,30 +121,52 @@ fn macro_download_image(fd: RawFd, out: &mut impl Write) -> io::Result<()> {
     Ok(())
 }
 
-/// **curl-download**: tải ảnh bằng `curl` trong Termux rồi mở bằng `termux-open`.
+/// **curl-download**: tự mở Termux, tải ảnh bằng `curl` rồi mở bằng `termux-open`.
 ///
 /// Đây là giải pháp đáng tin cậy hơn macro Chrome UI vì không phụ thuộc vào
 /// vị trí context menu hay animation timing.
 ///
-/// **Yêu cầu**: Termux đang mở và được focus trước khi chạy.
+/// **Yêu cầu**: `termux-setup-storage` đã được chạy ít nhất một lần.
 ///
 /// Luồng thực thi:
-///   1. Gõ lệnh curl tải ảnh về ~/storage/downloads/
-///   2. Gõ lệnh termux-open để mở ảnh bằng Gallery
+///   1. Consumer Home     — về màn hình chính
+///   2. Gõ "termux"       — launcher Android tìm kiếm app (hầu hết launcher hỗ trợ)
+///   3. Enter             — mở Termux
+///   4. Chờ 2s            — đợi Termux khởi động
+///   5. Ctrl+C            — hủy lệnh đang chạy nếu có
+///   6. Gõ lệnh curl && termux-open
+///   7. Enter             — thực thi
 fn macro_curl_download(fd: RawFd, out: &mut impl Write) -> io::Result<()> {
     const URL: &str = "https://files.catbox.moe/qwt4ou.jpg";
     const DEST: &str = "~/storage/downloads/qwt4ou.jpg";
 
-    writeln!(out, "[macro] curl-download: bắt đầu (yêu cầu Termux đang mở)...").ok();
+    writeln!(out, "[macro] curl-download: bắt đầu...").ok();
 
-    // Xóa dòng lệnh cũ nếu có
+    // ── Bước 1: về màn hình chính ─────────────────────────────────────────
+    writeln!(out, "[macro] Bước 1/4: về màn hình chính...").ok();
+    hid::consumer_key_tap(fd, hid::ConsumerKey::Home)?;
+    sleep(Duration::from_millis(600));
+
+    // ── Bước 2+3: tìm kiếm và mở Termux ──────────────────────────────────
+    // Hầu hết launcher (Pixel, One UI, Nova...) khi gõ trên home screen
+    // sẽ tự động mở search và lọc app theo tên.
+    writeln!(out, "[macro] Bước 2/4: tìm kiếm app 'termux'...").ok();
+    hid::type_string(fd, "termux")?;
+    sleep(Duration::from_millis(1200));
+
+    writeln!(out, "[macro] Bước 3/4: mở Termux...").ok();
+    hid::key_press(fd, modifier::NONE, KeyCode::Enter)?;
+    hid::key_release(fd)?;
+    sleep(Duration::from_millis(2000)); // đợi Termux load
+
+    // ── Bước 4: chạy lệnh curl ────────────────────────────────────────────
+    // Ctrl+C trước để hủy lệnh cũ nếu có
     hid::key_press(fd, modifier::LEFT_CTRL, KeyCode::C)?;
     hid::key_release(fd)?;
     sleep(Duration::from_millis(150));
 
-    // Gõ lệnh curl
-    writeln!(out, "[macro] Gõ lệnh curl...").ok();
-    let cmd = format!("curl -L -o {DEST} {URL} && termux-open {DEST}");
+    writeln!(out, "[macro] Bước 4/4: gõ lệnh curl...").ok();
+    let cmd = format!("curl -L -o {DEST} '{URL}' && termux-open {DEST}");
     hid::type_string(fd, &cmd)?;
     sleep(Duration::from_millis(200));
 
