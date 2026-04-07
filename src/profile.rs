@@ -61,6 +61,9 @@ fn build_profile_options() -> HashMap<String, Value<'static>> {
 
 /// Connect to the system D-Bus and register the HID keyboard profile with BlueZ.
 ///
+/// If the UUID is already registered from a previous unclean shutdown,
+/// this function unregisters it first before re-registering.
+///
 /// Returns the open `Connection` so the caller can keep the bus alive
 /// (BlueZ will unregister the profile if the connection drops).
 pub async fn register_hid_profile() -> zbus::Result<Connection> {
@@ -70,6 +73,10 @@ pub async fn register_hid_profile() -> zbus::Result<Connection> {
 
     let profile_path = OwnedObjectPath::try_from(PROFILE_OBJECT_PATH)
         .expect("static profile path is always valid");
+
+    // Attempt to clean up a stale registration from a previous unclean exit.
+    // Errors here are expected when no prior registration exists — ignore them.
+    let _ = manager.unregister_profile(profile_path.clone()).await;
 
     let options = build_profile_options();
 

@@ -98,28 +98,46 @@ sudo systemctl enable --now bluetooth
 
 ---
 
-## Cách build dự án
+## Cách build và chạy dự án
+
+### Cách 1 — Dùng `cargo run` (khợn nhất, dùng khi phát triển)
 
 ```bash
-# Clone hoặc mở thư mục dự án
 cd ccpay-human-commander
 
-# Build bản debug (nhanh, dùng để phát triển)
-cargo build
+# Chạy bản debug (tự động build rồi chạy)
+sudo $(which cargo) run
 
-# Build bản release (tối ưu hiệu năng, dùng khi chạy thật)
-cargo build --release
+# Hoặc bản release (chậm hơn lần đầu do tối ưu, nhưng nhanh hơn khi chạy)
+sudo $(which cargo) run --release
 ```
 
-File thực thi sẽ nằm tại:
-- Debug: `./target/debug/ccpay-human-commander`
-- Release: `./target/release/ccpay-human-commander`
+> **Tại sao dùng `$(which cargo)` thay vì chỉ `cargo`?**  
+> Khi gõ `sudo cargo run`, `sudo` chạy với `PATH` rút gọn — có thể không tìm thấy `cargo`. Dùng `$(which cargo)` để truyền đường dẫn tuyệt đối.
 
----
+### Cách 2 — Build trước, chạy sau (dùng khi deploy)
 
-## Cách chạy dự án
+```bash
+# Bước 1: Build
+cargo build --release
 
-### Bước 1 — Ghép đôi thiết bị Android trước
+# Bước 2: Chạy binary (đã tồn tại sau khi build)
+sudo ./target/release/ccpay-human-commander
+```
+
+> **Lưu ý**: Phải chạy `cargo build --release` ít nhất một lần trước. Nếu chạy `sudo ./target/release/...` mà chưa build → báo `command not found`.
+
+### Cách 3 — Không cần sudo (cấp capability)
+
+```bash
+cargo build --release
+
+# Cấp quyền một lần
+sudo setcap cap_net_raw+ep ./target/release/ccpay-human-commander
+
+# Sau đó chạy bình thường không cần sudo
+./target/release/ccpay-human-commander
+```
 
 ```bash
 # Mở bluetoothctl
@@ -140,15 +158,15 @@ exit
 ### Bước 2 — Chạy ứng dụng
 
 ```bash
-sudo ./target/release/ccpay-human-commander
+# Cách khợn nhất (tự build + chạy)
+sudo $(which cargo) run --release
 ```
 
-> **Lưu ý**: `sudo` cần thiết vì ứng dụng tạo raw Bluetooth socket (`AF_BLUETOOTH`).  
-> Thay thế không cần sudo: cấp capability cho binary:
-> ```bash
-> sudo setcap cap_net_raw+ep ./target/release/ccpay-human-commander
-> ./target/release/ccpay-human-commander
-> ```
+Hoặc nếu đã build rồi:
+
+```bash
+sudo ./target/release/ccpay-human-commander
+```
 
 ### Bước 3 — Sử dụng CLI
 
