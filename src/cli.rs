@@ -28,6 +28,7 @@ use libc::c_int as RawFd;
 type RawFd = libc::c_int;
 
 use crate::hid::{self, KeyCode, modifier, type_string};
+use crate::macros;
 
 /// Run the interactive command loop until the user types `quit` or `exit`,
 /// or stdin is closed.
@@ -102,6 +103,10 @@ fn dispatch(fd: RawFd, input: &str, out: &mut impl Write, last_screenshot: &mut 
             writeln!(out, "    drag <from_x> <to_x> <y> <hold_ms> - vuốt giữ và thả"   ).ok();
             writeln!(out, "    wheel <delta> - cuộn bánh xe chuột"                    ).ok();
             writeln!(out, "    move <offset_x> <offset_y> - di chuyển con trỏ tương đối").ok();
+            writeln!(out, "").ok();
+            writeln!(out, "  Macro tự động:").ok();
+            writeln!(out, "    macro download-image   - mở URL ảnh trong Chrome và tải về").ok();
+            writeln!(out, "    macro dl-img           - alias của download-image").ok();
             writeln!(out, ""                                                           ).ok();
             writeln!(out, "  Chụp màn hình Samsung:"                                    ).ok();
             writeln!(out, "    ss / screenshot      - Phím Print Screen (Samsung One UI)").ok();
@@ -172,6 +177,14 @@ fn dispatch(fd: RawFd, input: &str, out: &mut impl Write, last_screenshot: &mut 
                 }
             } else {
                 writeln!(out, "[cli] wheel delta must be a signed integer").ok();
+            }
+        }
+
+        "macro" => {
+            if rest.is_empty() {
+                writeln!(out, "[cli] usage: macro <tên>. Ví dụ: macro download-image").ok();
+            } else if let Err(e) = macros::run_macro(fd, rest, out) {
+                eprintln!("[cli] macro '{rest}' error: {e}");
             }
         }
 

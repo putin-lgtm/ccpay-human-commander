@@ -230,10 +230,54 @@ ccpay-human-commander ready. Type 'help' for commands.
 | `swipe <from_x> <to_x> <y>` | Vuốt ảo bằng HID Mouse | `swipe 0 400 20` |
 | `drag <from_x> <to_x> <y> <hold_ms>` | Vuốt giữ và thả | `drag 0 400 20 120` |
 | `wheel <delta>` | Cuộn bánh xe chuột | `wheel -3` |
+| `move <offset_x> <offset_y>` | Di chuyển con trỏ tương đối | `move 100 -50` |
+| `macro <tên>` | Chạy macro tự động | `macro download-image` |
 | `help` | Hiển thị trợ giúp | `help` |
 | `quit` hoặc `exit` | Ngắt kết nối và thoát | `quit` |
 
 > **Lưu ý**: `ss` / `ss-samsung` bị giới hạn tần suất 1 lần mỗi giây để tránh trigger hệ thống phòng thủ.
+
+---
+
+## Macro tự động
+
+Macro là chuỗi thao tác HID được lập trình sẵn, tự động thực thi tuần tự.
+
+```
+macro <tên>
+```
+
+### Danh sách macro
+
+| Tên | Alias | Mô tả |
+|-----|-------|-------|
+| `download-image` | `dl-img` | Mở URL ảnh trong Chrome Android và tải về |
+
+### `macro download-image`
+
+Tải ảnh từ URL `https://files.catbox.moe/qwt4ou.jpg` về thư mục Downloads của thiết bị.
+
+**Yêu cầu**: Chrome Android đang mở và đang được focus trước khi chạy.
+
+| Bước | Thao tác | Chi tiết |
+|------|----------|----------|
+| 1 | `Ctrl+L` | Focus thanh địa chỉ Chrome |
+| 2 | `Ctrl+A` → gõ URL | Xóa URL cũ, nhập URL ảnh mới |
+| 3 | `Enter` + chờ 3.5s | Điều hướng đến ảnh, đợi tải xong |
+| 4 | Long-press 1.2s | Mở context menu ảnh Chrome |
+| 5 | `↓` + `Enter` | Chọn "Lưu ảnh" → tải về Downloads |
+
+**Ví dụ:**
+```
+> macro download-image
+[macro] download-image: bắt đầu...
+[macro] Bước 1/5: focus thanh địa chỉ Chrome (Ctrl+L)...
+[macro] Bước 2/5: gõ URL ảnh...
+[macro] Bước 3/5: điều hướng → đợi ảnh tải (3.5s)...
+[macro] Bước 4/5: long-press để mở context menu...
+[macro] Bước 5/5: chọn 'Lưu ảnh' → Enter...
+[macro] download-image: hoàn tất! Kiểm tra thư mục Downloads.
+```
 
 ### Ví dụ phiên sử dụng thực tế
 

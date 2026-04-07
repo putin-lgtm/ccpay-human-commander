@@ -5,6 +5,8 @@ mod hid;
 #[cfg(target_os = "linux")]
 mod l2cap;
 #[cfg(target_os = "linux")]
+mod macros;
+#[cfg(target_os = "linux")]
 mod profile;
 mod sdp;  // sdp is platform-neutral (pure string constant)
 
