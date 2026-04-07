@@ -100,7 +100,9 @@ fn dispatch(fd: RawFd, input: &str, out: &mut impl Write, last_screenshot: &mut 
             writeln!(out, "    volup / voldown       - âm lượng"                         ).ok();
             writeln!(out, ""                                                           ).ok();
             writeln!(out, "  Swipe chuột ảo:"                                         ).ok();
-            writeln!(out, "    swipe <from_x> <to_x> <y> - vuốt ảo bằng HID Mouse"     ).ok();
+            writeln!(out, "    click                      - chạm tại vị trí hiện tại"         ).ok();
+            writeln!(out, "    click <dx> <dy>            - di chuyển rồi chạm"               ).ok();
+            writeln!(out, "    swipe <from_x> <to_x> <y> - vuốt ảo bằng HID Mouse"           ).ok();
             writeln!(out, "    drag <from_x> <to_x> <y> <hold_ms> - vuốt giữ và thả"   ).ok();
             writeln!(out, "    wheel <delta> - cuộn bánh xe chuột"                    ).ok();
             writeln!(out, "    move <offset_x> <offset_y> - di chuyển con trỏ tương đối").ok();
@@ -131,6 +133,32 @@ fn dispatch(fd: RawFd, input: &str, out: &mut impl Write, last_screenshot: &mut 
                     eprintln!("[cli] send error: {e}");
                 } else {
                     writeln!(out, "[cli] typed: {rest:?}").ok();
+                }
+            }
+        }
+
+        "click" | "tap" => {
+            if rest.is_empty() {
+                // click at current position
+                if let Err(e) = hid::mouse::send_click(fd) {
+                    eprintln!("[cli] click error: {e}");
+                } else {
+                    writeln!(out, "[cli] click tại ({}, {})", cursor_pos.0, cursor_pos.1).ok();
+                }
+            } else {
+                let parts: Vec<&str> = rest.split_whitespace().collect();
+                if parts.len() != 2 {
+                    writeln!(out, "[cli] usage: click [dx dy]  (không có arg = click tại chỗ hiện tại)").ok();
+                } else if let (Ok(dx), Ok(dy)) = (parts[0].parse::<i16>(), parts[1].parse::<i16>()) {
+                    if let Err(e) = hid::mouse::send_click_at(fd, dx, dy) {
+                        eprintln!("[cli] click error: {e}");
+                    } else {
+                        cursor_pos.0 += dx as i32;
+                        cursor_pos.1 += dy as i32;
+                        writeln!(out, "[cli] click tại ({}, {})", cursor_pos.0, cursor_pos.1).ok();
+                    }
+                } else {
+                    writeln!(out, "[cli] click offsets must be integers").ok();
                 }
             }
         }
@@ -269,11 +297,12 @@ fn dispatch(fd: RawFd, input: &str, out: &mut impl Write, last_screenshot: &mut 
             };
             // Ánh xạ: "mouse move/goto/wheel/swipe/drag/cursor/reset/pos" → lệnh gốc
             let mapped = match sub.to_ascii_lowercase().as_str() {
-                "move"   => format!("move {sub_rest}"),
-                "goto"   => format!("goto {sub_rest}"),
-                "wheel"  => format!("wheel {sub_rest}"),
-                "swipe"  => format!("swipe {sub_rest}"),
-                "drag"   => format!("drag {sub_rest}"),
+                "move"           => format!("move {sub_rest}"),
+                "goto"           => format!("goto {sub_rest}"),
+                "click" | "tap"  => format!("click {sub_rest}"),
+                "wheel"          => format!("wheel {sub_rest}"),
+                "swipe"          => format!("swipe {sub_rest}"),
+                "drag"           => format!("drag {sub_rest}"),
                 "reset" | "home" => "cursor reset".to_string(),
                 "pos"            => "cursor pos".to_string(),
                 "cursor"         => format!("cursor {sub_rest}"),

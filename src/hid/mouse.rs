@@ -94,6 +94,21 @@ pub fn send_wheel(interrupt_fd: RawFd, amount: i8) -> io::Result<()> {
     send_mouse_report(interrupt_fd, 0x00, 0, 0, 0)
 }
 
+/// Tap = left button press + release at current cursor position.
+/// Equivalent to a single touch/tap on Android.
+pub fn send_click(interrupt_fd: RawFd) -> io::Result<()> {
+    send_mouse_report(interrupt_fd, 0x01, 0, 0, 0)?; // button 1 down
+    sleep(Duration::from_millis(50));
+    send_mouse_report(interrupt_fd, 0x00, 0, 0, 0)   // button 1 up
+}
+
+/// Move to (dx, dy) relative offset then tap.
+pub fn send_click_at(interrupt_fd: RawFd, dx: i16, dy: i16) -> io::Result<()> {
+    send_move(interrupt_fd, dx, dy)?;
+    sleep(Duration::from_millis(30));
+    send_click(interrupt_fd)
+}
+
 /// Move the cursor by a relative offset (offset_x, offset_y) from the current
 /// pointer position, without pressing any button.
 pub fn send_move(interrupt_fd: RawFd, offset_x: i16, offset_y: i16) -> io::Result<()> {
