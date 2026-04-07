@@ -48,6 +48,7 @@ pub mod modifier {
 /// Common USB HID keycodes (Usage ID, Keyboard/Keypad page).
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[allow(dead_code)]
 pub enum KeyCode {
     // Control keys
     None = 0x00,
