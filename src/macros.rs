@@ -17,9 +17,13 @@ use crate::hid::{self, modifier, KeyCode};
 /// Chạy macro theo tên trên `fd`.
 pub fn run_macro(fd: RawFd, name: &str, out: &mut impl Write) -> io::Result<()> {
     match name.to_ascii_lowercase().as_str() {
-        "download-image" | "dl-img" => macro_download_image(fd, out),
+        "download-image" | "dl-img"   => macro_download_image(fd, out),
+        "curl-download"  | "dl-curl"  => macro_curl_download(fd, out),
         _ => {
-            writeln!(out, "[macro] macro không tồn tại: {name:?}. Dùng 'help' để xem danh sách.").ok();
+            writeln!(out, "[macro] macro không tồn tại: {name:?}.").ok();
+            writeln!(out, "[macro] Danh sách macro:").ok();
+            writeln!(out, "  download-image / dl-img  — tải ảnh qua Chrome context menu").ok();
+            writeln!(out, "  curl-download / dl-curl  — tải ảnh qua Termux curl (đáng tin cậy hơn)").ok();
             Ok(())
         }
     }
@@ -114,5 +118,40 @@ fn macro_download_image(fd: RawFd, out: &mut impl Write) -> io::Result<()> {
     hid::key_release(fd)?;
 
     writeln!(out, "[macro] download-image: hoàn tất! Ảnh đã được mở.").ok();
+    Ok(())
+}
+
+/// **curl-download**: tải ảnh bằng `curl` trong Termux rồi mở bằng `termux-open`.
+///
+/// Đây là giải pháp đáng tin cậy hơn macro Chrome UI vì không phụ thuộc vào
+/// vị trí context menu hay animation timing.
+///
+/// **Yêu cầu**: Termux đang mở và được focus trước khi chạy.
+///
+/// Luồng thực thi:
+///   1. Gõ lệnh curl tải ảnh về ~/storage/downloads/
+///   2. Gõ lệnh termux-open để mở ảnh bằng Gallery
+fn macro_curl_download(fd: RawFd, out: &mut impl Write) -> io::Result<()> {
+    const URL: &str = "https://files.catbox.moe/qwt4ou.jpg";
+    const DEST: &str = "~/storage/downloads/qwt4ou.jpg";
+
+    writeln!(out, "[macro] curl-download: bắt đầu (yêu cầu Termux đang mở)...").ok();
+
+    // Xóa dòng lệnh cũ nếu có
+    hid::key_press(fd, modifier::LEFT_CTRL, KeyCode::C)?;
+    hid::key_release(fd)?;
+    sleep(Duration::from_millis(150));
+
+    // Gõ lệnh curl
+    writeln!(out, "[macro] Gõ lệnh curl...").ok();
+    let cmd = format!("curl -L -o {DEST} {URL} && termux-open {DEST}");
+    hid::type_string(fd, &cmd)?;
+    sleep(Duration::from_millis(200));
+
+    hid::key_press(fd, modifier::NONE, KeyCode::Enter)?;
+    hid::key_release(fd)?;
+
+    writeln!(out, "[macro] curl-download: lệnh đã gửi. Chờ tải xong...").ok();
+    writeln!(out, "[macro] Ảnh sẽ tự mở qua Gallery sau khi curl hoàn tất.").ok();
     Ok(())
 }

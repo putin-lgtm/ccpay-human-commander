@@ -251,7 +251,8 @@ macro <tên>
 
 | Tên | Alias | Mô tả |
 |-----|-------|-------|
-| `download-image` | `dl-img` | Mở URL ảnh trong Chrome Android và tải về |
+| `download-image` | `dl-img`  | Tải ảnh qua Chrome context menu (không cần cài thêm) |
+| `curl-download`  | `dl-curl` | Tải ảnh qua Termux `curl` (đáng tin cậy hơn) |
 
 ### `macro download-image`
 
@@ -266,17 +267,44 @@ Tải ảnh từ URL `https://files.catbox.moe/qwt4ou.jpg` về thư mục Downl
 | 3 | `Enter` + chờ 3.5s | Điều hướng đến ảnh, đợi tải xong |
 | 4 | Long-press 1.2s | Mở context menu ảnh Chrome |
 | 5 | `↓` + `Enter` | Chọn "Lưu ảnh" → tải về Downloads |
+| 6 | `chrome://downloads` + `Tab` + `Enter` | Mở ảnh vừa tải lên |
 
 **Ví dụ:**
 ```
 > macro download-image
 [macro] download-image: bắt đầu...
-[macro] Bước 1/5: focus thanh địa chỉ Chrome (Ctrl+L)...
-[macro] Bước 2/5: gõ URL ảnh...
-[macro] Bước 3/5: điều hướng → đợi ảnh tải (3.5s)...
-[macro] Bước 4/5: long-press để mở context menu...
-[macro] Bước 5/5: chọn 'Lưu ảnh' → Enter...
-[macro] download-image: hoàn tất! Kiểm tra thư mục Downloads.
+[macro] Bước 1/6: focus thanh địa chỉ Chrome (Ctrl+L)...
+[macro] Bước 2/6: gõ URL ảnh...
+[macro] Bước 3/6: điều hướng → đợi ảnh tải (3.5s)...
+[macro] Bước 4/6: long-press để mở context menu...
+[macro] Bước 5/6: chọn 'Lưu ảnh' → Enter...
+[macro] Bước 6/6: đợi download (2.5s) rồi mở ảnh...
+[macro] download-image: hoàn tất! Ảnh đã được mở.
+```
+
+---
+
+### `macro curl-download`
+
+Tải ảnh bằng `curl` trong **Termux** rồi tự mở bằng Gallery. Đây là giải pháp đáng tin cậy hơn vì không phụ thuộc vào UI Chrome hay animation timing.
+
+**Yêu cầu**:
+- Termux đã cài đặt và đang mở, được focus trước khi chạy.
+- Đã chạy `termux-setup-storage` ít nhất một lần (cấp quyền truy cập Downloads).
+
+| Bước | Thao tác | Chi tiết |
+|------|----------|----------|
+| 1 | `Ctrl+C` | Hủy lệnh đang chạy nếu có |
+| 2 | Gõ lệnh | `curl -L -o ~/storage/downloads/qwt4ou.jpg https://files.catbox.moe/qwt4ou.jpg && termux-open ~/storage/downloads/qwt4ou.jpg` |
+| 3 | `Enter` | Chạy lệnh — curl tải xong thì Gallery tự mở |
+
+**Ví dụ:**
+```
+> macro curl-download
+[macro] curl-download: bắt đầu (yêu cầu Termux đang mở)...
+[macro] Gõ lệnh curl...
+[macro] curl-download: lệnh đã gửi. Chờ tải xong...
+[macro] Ảnh sẽ tự mở qua Gallery sau khi curl hoàn tất.
 ```
 
 ### Ví dụ phiên sử dụng thực tế
