@@ -132,7 +132,19 @@ pub enum KeyCode {
     /// Samsung One UI triggers a screenshot when this key is pressed
     /// while a Bluetooth keyboard is connected.
     PrintScreen = 0x46,
-}
+
+    // Punctuation (US QWERTY layout)
+    Minus        = 0x2D, // - (no shift) / _ (shift)
+    Equal        = 0x2E, // = (no shift) / + (shift)
+    LeftBracket  = 0x2F, // [ (no shift) / { (shift)
+    RightBracket = 0x30, // ] (no shift) / } (shift)
+    Backslash    = 0x31, // \ (no shift) / | (shift)
+    Semicolon    = 0x33, // ; (no shift) / : (shift)
+    Apostrophe   = 0x34, // ' (no shift) / " (shift)
+    Grave        = 0x35, // ` (no shift) / ~ (shift)
+    Comma        = 0x36, // , (no shift) / < (shift)
+    Period       = 0x37, // . (no shift) / > (shift)
+    Slash        = 0x38, // / (no shift) / ? (shift)
 
 // ---------------------------------------------------------------------------
 // Report construction
@@ -344,9 +356,42 @@ fn char_to_keycode(ch: char) -> Option<(KeyCode, u8)> {
         '7' => Some((KeyCode::Digit7, modifier::NONE)),
         '8' => Some((KeyCode::Digit8, modifier::NONE)),
         '9' => Some((KeyCode::Digit9, modifier::NONE)),
-        ' ' => Some((KeyCode::Space, modifier::NONE)),
+        ' ' => Some((KeyCode::Space,  modifier::NONE)),
         '\n' => Some((KeyCode::Enter, modifier::NONE)),
-        '\t' => Some((KeyCode::Tab, modifier::NONE)),
-        _ => None,
+        '\t' => Some((KeyCode::Tab,   modifier::NONE)),
+        // Punctuation
+        '-'  => Some((KeyCode::Minus,        modifier::NONE)),
+        '_'  => Some((KeyCode::Minus,        modifier::LEFT_SHIFT)),
+        '='  => Some((KeyCode::Equal,        modifier::NONE)),
+        '+'  => Some((KeyCode::Equal,        modifier::LEFT_SHIFT)),
+        '['  => Some((KeyCode::LeftBracket,  modifier::NONE)),
+        '{'  => Some((KeyCode::LeftBracket,  modifier::LEFT_SHIFT)),
+        ']'  => Some((KeyCode::RightBracket, modifier::NONE)),
+        '}'  => Some((KeyCode::RightBracket, modifier::LEFT_SHIFT)),
+        '\\' => Some((KeyCode::Backslash,   modifier::NONE)),
+        '|'  => Some((KeyCode::Backslash,    modifier::LEFT_SHIFT)),
+        ';'  => Some((KeyCode::Semicolon,    modifier::NONE)),
+        ':'  => Some((KeyCode::Semicolon,    modifier::LEFT_SHIFT)),
+        '\'' => Some((KeyCode::Apostrophe,  modifier::NONE)),
+        '"'  => Some((KeyCode::Apostrophe,   modifier::LEFT_SHIFT)),
+        '`'  => Some((KeyCode::Grave,        modifier::NONE)),
+        '~'  => Some((KeyCode::Grave,        modifier::LEFT_SHIFT)),
+        ','  => Some((KeyCode::Comma,        modifier::NONE)),
+        '<'  => Some((KeyCode::Comma,        modifier::LEFT_SHIFT)),
+        '.'  => Some((KeyCode::Period,       modifier::NONE)),
+        '>'  => Some((KeyCode::Period,       modifier::LEFT_SHIFT)),
+        '/'  => Some((KeyCode::Slash,        modifier::NONE)),
+        '?'  => Some((KeyCode::Slash,        modifier::LEFT_SHIFT)),
+        '!'  => Some((KeyCode::Digit1,       modifier::LEFT_SHIFT)),
+        '@'  => Some((KeyCode::Digit2,       modifier::LEFT_SHIFT)),
+        '#'  => Some((KeyCode::Digit3,       modifier::LEFT_SHIFT)),
+        '$'  => Some((KeyCode::Digit4,       modifier::LEFT_SHIFT)),
+        '%'  => Some((KeyCode::Digit5,       modifier::LEFT_SHIFT)),
+        '^'  => Some((KeyCode::Digit6,       modifier::LEFT_SHIFT)),
+        '&'  => Some((KeyCode::Digit7,       modifier::LEFT_SHIFT)),
+        '*'  => Some((KeyCode::Digit8,       modifier::LEFT_SHIFT)),
+        '('  => Some((KeyCode::Digit9,       modifier::LEFT_SHIFT)),
+        ')'  => Some((KeyCode::Digit0,       modifier::LEFT_SHIFT)),
+        _    => None,
     }
 }
