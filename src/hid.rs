@@ -1,15 +1,21 @@
 /// HID Keyboard Report module.
 ///
-/// Formats and sends 8-byte Keyboard Input Reports over an L2CAP interrupt
-/// socket using the standard boot-keyboard report format:
+/// Keyboard Input Report (Report ID 1) — 9 bytes over HIDP:
 ///
-///   Byte 0: 0xA1  – HID Input report identifier
-///   Byte 1: modifier bitmask
-///   Byte 2: reserved (0x00)
-///   Byte 3: keycode 1
-///   Bytes 4-7: keycodes 2-5 (unused, 0x00)
+///   Byte 0: 0xA1  – HIDP Input report header
+///   Byte 1: 0x01  – Report ID 1 (keyboard)
+///   Byte 2: modifier bitmask
+///   Byte 3: reserved (0x00)
+///   Byte 4: keycode 1
+///   Bytes 5-9: keycodes 2-6 (unused, 0x00)
 ///
-/// USB HID Usage Table keycodes are defined in the `KeyCode` enum below.
+/// Consumer Control Report (Report ID 2) — 4 bytes over HIDP:
+///
+///   Byte 0: 0xA1  – HIDP Input report header
+///   Byte 1: 0x02  – Report ID 2 (consumer control)
+///   Bytes 2-3: 16-bit Usage ID little-endian (e.g. AC Back = 0x0224)
+///
+/// USB HID Usage Table keycodes defined in `KeyCode` and `ConsumerKey` enums.
 
 use std::io;
 #[cfg(target_os = "linux")]
@@ -115,26 +121,84 @@ pub enum KeyCode {
     F10 = 0x43,
     F11 = 0x44,
     F12 = 0x45,
+
+    /// Print Screen / SysRq — Android maps this to KEYCODE_SYSRQ.
+    /// Samsung One UI triggers a screenshot when this key is pressed
+    /// while a Bluetooth keyboard is connected.
+    PrintScreen = 0x46,
 }
 
 // ---------------------------------------------------------------------------
 // Report construction
 // ---------------------------------------------------------------------------
 
-/// Build a standard 8-byte HID keyboard input report.
+/// Build a 9-byte HID keyboard input report (Report ID 1).
 ///
 /// # Arguments
 /// * `modifier` – bitmask from the `modifier` module (or 0x00 for none).
 /// * `keycode`  – USB HID usage ID of the key being pressed (0x00 = none).
 #[inline]
-pub fn build_report(modifier: u8, keycode: u8) -> [u8; 8] {
-    [0xA1, modifier, 0x00, keycode, 0x00, 0x00, 0x00, 0x00]
+pub fn build_report(modifier: u8, keycode: u8) -> [u8; 9] {
+    // [HIDP header, Report ID, modifier, reserved, kc1, kc2, kc3, kc4, kc5]
+    [0xA1, 0x01, modifier, 0x00, keycode, 0x00, 0x00, 0x00, 0x00]
 }
 
-/// Build the key-release report (all fields zeroed, except the 0xA1 header).
+/// Build the keyboard key-release report (Report ID 1, all keys up).
 #[inline]
-pub fn build_release_report() -> [u8; 8] {
-    [0xA1, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
+pub fn build_release_report() -> [u8; 9] {
+    [0xA1, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
+}
+
+// ---------------------------------------------------------------------------
+// Consumer Control reports (Report ID 2)
+// ---------------------------------------------------------------------------
+
+/// Android-specific system keys from the HID Consumer Control page (0x0C).
+/// These map to Android `KEYCODE_*` via the kernel HID driver.
+#[repr(u16)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ConsumerKey {
+    /// AC Home (0x0223) → Android `KEYCODE_HOME` — goes to home screen.
+    Home       = 0x0223,
+    /// AC Back (0x0224) → Android `KEYCODE_BACK` — equivalent to the Back button.
+    Back       = 0x0224,
+    /// AC Desktop Show All Windows (0x029F) → Android `KEYCODE_APP_SWITCH` (Recent Apps).
+    Recent     = 0x029F,
+    /// Volume Increment (0x00E9) → Android `KEYCODE_VOLUME_UP`.
+    VolumeUp   = 0x00E9,
+    /// Volume Decrement (0x00EA) → Android `KEYCODE_VOLUME_DOWN`.
+    VolumeDown = 0x00EA,
+}
+
+/// Build a 4-byte Consumer Control press report (Report ID 2).
+#[inline]
+pub fn build_consumer_report(key: ConsumerKey) -> [u8; 4] {
+    let usage = (key as u16).to_le_bytes();
+    [0xA1, 0x02, usage[0], usage[1]]
+}
+
+/// Build the Consumer Control release report (all usages cleared).
+#[inline]
+pub fn build_consumer_release() -> [u8; 4] {
+    [0xA1, 0x02, 0x00, 0x00]
+}
+
+/// Send a Consumer Control key tap (press + release) over `interrupt_fd`.
+pub fn consumer_key_tap(interrupt_fd: RawFd, key: ConsumerKey) -> io::Result<()> {
+    let press = build_consumer_report(key);
+    send_report(interrupt_fd, &press)?;
+    let release = build_consumer_release();
+    send_report(interrupt_fd, &release)
+}
+
+/// Samsung One UI screenshot macro: sends Ctrl + Shift + S.
+///
+/// On Samsung Galaxy devices running One UI 3+, pressing Ctrl+Shift+S while a
+/// Bluetooth keyboard is connected captures a screenshot.
+/// For other devices, `key printscreen` (0x46) is the more universal option.
+pub fn samsung_screenshot(interrupt_fd: RawFd) -> io::Result<()> {
+    key_press(interrupt_fd, modifier::LEFT_CTRL | modifier::LEFT_SHIFT, KeyCode::S)?;
+    key_release(interrupt_fd)
 }
 
 // ---------------------------------------------------------------------------

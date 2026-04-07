@@ -85,13 +85,25 @@ fn dispatch(fd: RawFd, input: &str, out: &mut impl Write) -> CliAction {
         "quit" | "exit" => return CliAction::Quit,
 
         "help" => {
-            writeln!(out, "Commands:"                                      ).ok();
-            writeln!(out, "  type <text>      - type a string"             ).ok();
-            writeln!(out, "  key <name>       - send named key"            ).ok();
-            writeln!(out, "      (tab, enter, space, backspace, esc,"      ).ok();
-            writeln!(out, "       up, down, left, right, home, end,"       ).ok();
-            writeln!(out, "       pgup, pgdn, f1-f12, a-z, 0-9)"          ).ok();
-            writeln!(out, "  quit / exit      - disconnect"                ).ok();
+            writeln!(out, "Commands:"                                                  ).ok();
+            writeln!(out, "  type <text>            - gõ chuỗi ký tự"                      ).ok();
+            writeln!(out, "  key <name>             - gửi phím theo tên"               ).ok();
+            writeln!(out, ""                                                           ).ok();
+            writeln!(out, "  Phím Android (Consumer Control):"                        ).ok();
+            writeln!(out, "    back                 - phím Back (KEYCODE_BACK)"        ).ok();
+            writeln!(out, "    recent               - phím Recent Apps (KEYCODE_APP_SWITCH)").ok();
+            writeln!(out, "    home-android         - về màn hình chính (KEYCODE_HOME)" ).ok();
+            writeln!(out, "    volup / voldown       - âm lượng"                         ).ok();
+            writeln!(out, ""                                                           ).ok();
+            writeln!(out, "  Chụp màn hình Samsung:"                                    ).ok();
+            writeln!(out, "    ss / screenshot      - Phím Print Screen (Samsung One UI)").ok();
+            writeln!(out, "    ss-samsung           - Ctrl+Shift+S (Samsung + bàn phím BT)").ok();
+            writeln!(out, ""                                                           ).ok();
+            writeln!(out, "  Phím bàn phím thông thường:"                              ).ok();
+            writeln!(out, "    tab, enter, space, backspace, esc"                     ).ok();
+            writeln!(out, "    up/down/left/right, home/end, pgup/pgdn"               ).ok();
+            writeln!(out, "    f1-f12, a-z, 0-9"                                      ).ok();
+            writeln!(out, "  quit / exit            - ngắt kết nối"                    ).ok();
         }
 
         "type" => {
@@ -122,79 +134,101 @@ fn dispatch(fd: RawFd, input: &str, out: &mut impl Write) -> CliAction {
     CliAction::Continue
 }
 
-/// Resolve a key name string to a (KeyCode, modifier) pair and send it.
+/// Internal key action — distinguishes keyboard keys, consumer control keys, and macros.
+enum KeyAction {
+    Keyboard(KeyCode, u8),
+    Consumer(hid::ConsumerKey),
+    SamsungScreenshot,
+}
+
+/// Resolve a key name string and dispatch the appropriate HID report(s).
 fn send_named_key(fd: RawFd, name: &str, out: &mut impl Write) {
-    let result: Option<(KeyCode, u8)> = match name.to_ascii_lowercase().as_str() {
-        "tab"       => Some((KeyCode::Tab,        modifier::NONE)),
-        "enter"     => Some((KeyCode::Enter,       modifier::NONE)),
-        "space"     => Some((KeyCode::Space,       modifier::NONE)),
-        "backspace" => Some((KeyCode::Backspace,   modifier::NONE)),
-        "esc" | "escape" => Some((KeyCode::Escape, modifier::NONE)),
-        "up"        => Some((KeyCode::ArrowUp,     modifier::NONE)),
-        "down"      => Some((KeyCode::ArrowDown,   modifier::NONE)),
-        "left"      => Some((KeyCode::ArrowLeft,   modifier::NONE)),
-        "right"     => Some((KeyCode::ArrowRight,  modifier::NONE)),
-        "home"      => Some((KeyCode::Home,        modifier::NONE)),
-        "end"       => Some((KeyCode::End,         modifier::NONE)),
-        "pgup" | "pageup"   => Some((KeyCode::PageUp,   modifier::NONE)),
-        "pgdn" | "pagedown" => Some((KeyCode::PageDown, modifier::NONE)),
-        "caps" | "capslock" => Some((KeyCode::CapsLock, modifier::NONE)),
+    let action: Option<KeyAction> = match name.to_ascii_lowercase().as_str() {
+        // ── Phím Android (HID Consumer Control, Report ID 2) ───────────────────
+        "back"                                  => Some(KeyAction::Consumer(hid::ConsumerKey::Back)),
+        "recent" | "recents" | "overview"       => Some(KeyAction::Consumer(hid::ConsumerKey::Recent)),
+        "home-android" | "androidhome"          => Some(KeyAction::Consumer(hid::ConsumerKey::Home)),
+        "volup"   | "volumeup"                  => Some(KeyAction::Consumer(hid::ConsumerKey::VolumeUp)),
+        "voldown" | "volumedown"                => Some(KeyAction::Consumer(hid::ConsumerKey::VolumeDown)),
+
+        // ── Chụp màn hình Samsung ─────────────────────────────────────────────
+        // Print Screen → KEYCODE_SYSRQ trên Android, Samsung One UI ánh xạ sang screenshot
+        "ss" | "screenshot" | "prtsc" | "printscreen"
+                                                => Some(KeyAction::Keyboard(KeyCode::PrintScreen, modifier::NONE)),
+        // Ctrl+Shift+S macro — Samsung One UI khi kết nối bàn phím Bluetooth
+        "ss-samsung" | "screenshot-samsung"     => Some(KeyAction::SamsungScreenshot),
+
+        // ── Phím bàn phím thông thường (HID Keyboard page, Report ID 1) ────────
+        "tab"       => Some(KeyAction::Keyboard(KeyCode::Tab,        modifier::NONE)),
+        "enter"     => Some(KeyAction::Keyboard(KeyCode::Enter,       modifier::NONE)),
+        "space"     => Some(KeyAction::Keyboard(KeyCode::Space,       modifier::NONE)),
+        "backspace" => Some(KeyAction::Keyboard(KeyCode::Backspace,   modifier::NONE)),
+        "esc" | "escape" => Some(KeyAction::Keyboard(KeyCode::Escape, modifier::NONE)),
+        "up"        => Some(KeyAction::Keyboard(KeyCode::ArrowUp,     modifier::NONE)),
+        "down"      => Some(KeyAction::Keyboard(KeyCode::ArrowDown,   modifier::NONE)),
+        "left"      => Some(KeyAction::Keyboard(KeyCode::ArrowLeft,   modifier::NONE)),
+        "right"     => Some(KeyAction::Keyboard(KeyCode::ArrowRight,  modifier::NONE)),
+        "home"      => Some(KeyAction::Keyboard(KeyCode::Home,        modifier::NONE)),
+        "end"       => Some(KeyAction::Keyboard(KeyCode::End,         modifier::NONE)),
+        "pgup" | "pageup"   => Some(KeyAction::Keyboard(KeyCode::PageUp,   modifier::NONE)),
+        "pgdn" | "pagedown" => Some(KeyAction::Keyboard(KeyCode::PageDown, modifier::NONE)),
+        "caps" | "capslock" => Some(KeyAction::Keyboard(KeyCode::CapsLock, modifier::NONE)),
         // Letters a-z
-        "a" => Some((KeyCode::A, modifier::NONE)),
-        "b" => Some((KeyCode::B, modifier::NONE)),
-        "c" => Some((KeyCode::C, modifier::NONE)),
-        "d" => Some((KeyCode::D, modifier::NONE)),
-        "e" => Some((KeyCode::E, modifier::NONE)),
-        "f" => Some((KeyCode::F, modifier::NONE)),
-        "g" => Some((KeyCode::G, modifier::NONE)),
-        "h" => Some((KeyCode::H, modifier::NONE)),
-        "i" => Some((KeyCode::I, modifier::NONE)),
-        "j" => Some((KeyCode::J, modifier::NONE)),
-        "k" => Some((KeyCode::K, modifier::NONE)),
-        "l" => Some((KeyCode::L, modifier::NONE)),
-        "m" => Some((KeyCode::M, modifier::NONE)),
-        "n" => Some((KeyCode::N, modifier::NONE)),
-        "o" => Some((KeyCode::O, modifier::NONE)),
-        "p" => Some((KeyCode::P, modifier::NONE)),
-        "q" => Some((KeyCode::Q, modifier::NONE)),
-        "r" => Some((KeyCode::R, modifier::NONE)),
-        "s" => Some((KeyCode::S, modifier::NONE)),
-        "t" => Some((KeyCode::T, modifier::NONE)),
-        "u" => Some((KeyCode::U, modifier::NONE)),
-        "v" => Some((KeyCode::V, modifier::NONE)),
-        "w" => Some((KeyCode::W, modifier::NONE)),
-        "x" => Some((KeyCode::X, modifier::NONE)),
-        "y" => Some((KeyCode::Y, modifier::NONE)),
-        "z" => Some((KeyCode::Z, modifier::NONE)),
+        "a" => Some(KeyAction::Keyboard(KeyCode::A, modifier::NONE)),
+        "b" => Some(KeyAction::Keyboard(KeyCode::B, modifier::NONE)),
+        "c" => Some(KeyAction::Keyboard(KeyCode::C, modifier::NONE)),
+        "d" => Some(KeyAction::Keyboard(KeyCode::D, modifier::NONE)),
+        "e" => Some(KeyAction::Keyboard(KeyCode::E, modifier::NONE)),
+        "f" => Some(KeyAction::Keyboard(KeyCode::F, modifier::NONE)),
+        "g" => Some(KeyAction::Keyboard(KeyCode::G, modifier::NONE)),
+        "h" => Some(KeyAction::Keyboard(KeyCode::H, modifier::NONE)),
+        "i" => Some(KeyAction::Keyboard(KeyCode::I, modifier::NONE)),
+        "j" => Some(KeyAction::Keyboard(KeyCode::J, modifier::NONE)),
+        "k" => Some(KeyAction::Keyboard(KeyCode::K, modifier::NONE)),
+        "l" => Some(KeyAction::Keyboard(KeyCode::L, modifier::NONE)),
+        "m" => Some(KeyAction::Keyboard(KeyCode::M, modifier::NONE)),
+        "n" => Some(KeyAction::Keyboard(KeyCode::N, modifier::NONE)),
+        "o" => Some(KeyAction::Keyboard(KeyCode::O, modifier::NONE)),
+        "p" => Some(KeyAction::Keyboard(KeyCode::P, modifier::NONE)),
+        "q" => Some(KeyAction::Keyboard(KeyCode::Q, modifier::NONE)),
+        "r" => Some(KeyAction::Keyboard(KeyCode::R, modifier::NONE)),
+        "s" => Some(KeyAction::Keyboard(KeyCode::S, modifier::NONE)),
+        "t" => Some(KeyAction::Keyboard(KeyCode::T, modifier::NONE)),
+        "u" => Some(KeyAction::Keyboard(KeyCode::U, modifier::NONE)),
+        "v" => Some(KeyAction::Keyboard(KeyCode::V, modifier::NONE)),
+        "w" => Some(KeyAction::Keyboard(KeyCode::W, modifier::NONE)),
+        "x" => Some(KeyAction::Keyboard(KeyCode::X, modifier::NONE)),
+        "y" => Some(KeyAction::Keyboard(KeyCode::Y, modifier::NONE)),
+        "z" => Some(KeyAction::Keyboard(KeyCode::Z, modifier::NONE)),
         // Digits
-        "0" => Some((KeyCode::Digit0, modifier::NONE)),
-        "1" => Some((KeyCode::Digit1, modifier::NONE)),
-        "2" => Some((KeyCode::Digit2, modifier::NONE)),
-        "3" => Some((KeyCode::Digit3, modifier::NONE)),
-        "4" => Some((KeyCode::Digit4, modifier::NONE)),
-        "5" => Some((KeyCode::Digit5, modifier::NONE)),
-        "6" => Some((KeyCode::Digit6, modifier::NONE)),
-        "7" => Some((KeyCode::Digit7, modifier::NONE)),
-        "8" => Some((KeyCode::Digit8, modifier::NONE)),
-        "9" => Some((KeyCode::Digit9, modifier::NONE)),
+        "0" => Some(KeyAction::Keyboard(KeyCode::Digit0, modifier::NONE)),
+        "1" => Some(KeyAction::Keyboard(KeyCode::Digit1, modifier::NONE)),
+        "2" => Some(KeyAction::Keyboard(KeyCode::Digit2, modifier::NONE)),
+        "3" => Some(KeyAction::Keyboard(KeyCode::Digit3, modifier::NONE)),
+        "4" => Some(KeyAction::Keyboard(KeyCode::Digit4, modifier::NONE)),
+        "5" => Some(KeyAction::Keyboard(KeyCode::Digit5, modifier::NONE)),
+        "6" => Some(KeyAction::Keyboard(KeyCode::Digit6, modifier::NONE)),
+        "7" => Some(KeyAction::Keyboard(KeyCode::Digit7, modifier::NONE)),
+        "8" => Some(KeyAction::Keyboard(KeyCode::Digit8, modifier::NONE)),
+        "9" => Some(KeyAction::Keyboard(KeyCode::Digit9, modifier::NONE)),
         // Function keys
-        "f1"  => Some((KeyCode::F1,  modifier::NONE)),
-        "f2"  => Some((KeyCode::F2,  modifier::NONE)),
-        "f3"  => Some((KeyCode::F3,  modifier::NONE)),
-        "f4"  => Some((KeyCode::F4,  modifier::NONE)),
-        "f5"  => Some((KeyCode::F5,  modifier::NONE)),
-        "f6"  => Some((KeyCode::F6,  modifier::NONE)),
-        "f7"  => Some((KeyCode::F7,  modifier::NONE)),
-        "f8"  => Some((KeyCode::F8,  modifier::NONE)),
-        "f9"  => Some((KeyCode::F9,  modifier::NONE)),
-        "f10" => Some((KeyCode::F10, modifier::NONE)),
-        "f11" => Some((KeyCode::F11, modifier::NONE)),
-        "f12" => Some((KeyCode::F12, modifier::NONE)),
+        "f1"  => Some(KeyAction::Keyboard(KeyCode::F1,  modifier::NONE)),
+        "f2"  => Some(KeyAction::Keyboard(KeyCode::F2,  modifier::NONE)),
+        "f3"  => Some(KeyAction::Keyboard(KeyCode::F3,  modifier::NONE)),
+        "f4"  => Some(KeyAction::Keyboard(KeyCode::F4,  modifier::NONE)),
+        "f5"  => Some(KeyAction::Keyboard(KeyCode::F5,  modifier::NONE)),
+        "f6"  => Some(KeyAction::Keyboard(KeyCode::F6,  modifier::NONE)),
+        "f7"  => Some(KeyAction::Keyboard(KeyCode::F7,  modifier::NONE)),
+        "f8"  => Some(KeyAction::Keyboard(KeyCode::F8,  modifier::NONE)),
+        "f9"  => Some(KeyAction::Keyboard(KeyCode::F9,  modifier::NONE)),
+        "f10" => Some(KeyAction::Keyboard(KeyCode::F10, modifier::NONE)),
+        "f11" => Some(KeyAction::Keyboard(KeyCode::F11, modifier::NONE)),
+        "f12" => Some(KeyAction::Keyboard(KeyCode::F12, modifier::NONE)),
         _ => None,
     };
 
-    match result {
-        Some((kc, mods)) => {
+    match action {
+        Some(KeyAction::Keyboard(kc, mods)) => {
             if let Err(e) = hid::key_press(fd, mods, kc) {
                 eprintln!("[cli] press error: {e}");
                 return;
@@ -205,8 +239,22 @@ fn send_named_key(fd: RawFd, name: &str, out: &mut impl Write) {
             }
             writeln!(out, "[cli] key sent: {name}").ok();
         }
+        Some(KeyAction::Consumer(ck)) => {
+            if let Err(e) = hid::consumer_key_tap(fd, ck) {
+                eprintln!("[cli] consumer key error: {e}");
+                return;
+            }
+            writeln!(out, "[cli] key sent: {name}").ok();
+        }
+        Some(KeyAction::SamsungScreenshot) => {
+            if let Err(e) = hid::samsung_screenshot(fd) {
+                eprintln!("[cli] screenshot error: {e}");
+                return;
+            }
+            writeln!(out, "[cli] Samsung screenshot sent (Ctrl+Shift+S)").ok();
+        }
         None => {
-            writeln!(out, "[cli] unknown key: {name:?}. Try 'help'.").ok();
+            writeln!(out, "[cli] unknown key: {name:?}. Type 'help'.").ok();
         }
     }
 }
