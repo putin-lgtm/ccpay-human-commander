@@ -1,0 +1,16 @@
+[package]
+name = "ccpay-human-commander"
+version = "0.1.0"
+edition = "2021"
+description = "Bluetooth HID Keyboard emulator for cross-device accessibility"
+authors = ["ccpay"]
+
+[dependencies]
+zbus = { version = "4", default-features = false, features = ["tokio"] }
+tokio = { version = "1", features = ["full"] }
+libc = "0.2"
+zvariant = "4"
+
+[[bin]]
+name = "ccpay-human-commander"
+path = "src/main.rs"
