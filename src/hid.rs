@@ -145,6 +145,7 @@ pub enum KeyCode {
     Comma        = 0x36, // , (no shift) / < (shift)
     Period       = 0x37, // . (no shift) / > (shift)
     Slash        = 0x38, // / (no shift) / ? (shift)
+}
 
 // ---------------------------------------------------------------------------
 // Report construction
