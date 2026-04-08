@@ -1,21 +1,28 @@
 #!/bin/bash
+echo "🚀 Đang khởi tạo quy trình Hard-Reset Bluetooth..."
 
-echo "🧹 Đang dọn dẹp Stack Bluetooth..."
-# 1. Dừng service mặc định để giải phóng UUID
+# 1. Giết các tiến trình cũ để tránh tranh chấp socket
+sudo killall -9 bluetoothd 2>/dev/null
 sudo systemctl stop bluetooth
 
-# 2. Kill các tiến trình bluetoothd còn sót lại (nếu có)
-sudo killall bluetoothd 2>/dev/null
+# 2. Kiểm tra đường dẫn thực thi của bluetoothd
+if [ -f "/usr/libexec/bluetooth/bluetoothd" ]; then
+    BT_PATH="/usr/libexec/bluetooth/bluetoothd"
+else
+    BT_PATH="/usr/lib/bluetooth/bluetoothd"
+fi
 
-# 3. Chạy bluetoothd ở chế độ "Sạch" (Exclude các plugin tranh chấp)
-# Chúng ta dùng '&' để nó chạy ngầm, hoặc bạn chạy nó ở một Terminal riêng
-sudo /usr/libexec/bluetooth/bluetoothd -n -E --noplugin=input,hog > /dev/null 2>&1 &
+# 3. Sửa file Service tự động (Dùng sed để tránh lỗi tay)
+sudo sed -i "s|^ExecStart=.*|ExecStart=$BT_PATH -E --noplugin=input,hog|" /lib/systemd/system/bluetooth.service
 
-sleep 2 # Đợi daemon khởi động
+# 4. Nạp lại hệ thống
+sudo systemctl daemon-reload
+sudo systemctl start bluetooth
+sleep 2
 
-# 4. Cấu hình Controller
-sudo btmgmt power on
-sudo btmgmt pairable on
-sudo btmgmt discov on
+# 5. Cấu hình Class Combo (Keyboard + Mouse)
+sudo hciconfig hci0 up
+sudo hciconfig hci0 class 0x0005C0
 
-echo "✅ Bluetooth Clean & Ready (Plugins input/hog excluded)!"
+echo "✅ Hệ thống đã sẵn sàng với Class: $(hciconfig hci0 class | grep Class)"
+echo "👉 Bây giờ hãy chạy App Rust, sau đó mới dùng bluetoothctl để connect."
