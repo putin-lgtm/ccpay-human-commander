@@ -1,31 +1,34 @@
 #!/bin/bash
-echo "🚀 Đang khởi tạo quy trình Hard-Reset Bluetooth (Hybrid Version)..."
+echo "🚀 Đang khởi tạo quy trình Hard-Reset Bluetooth (V3 - Anti-Timeout)..."
 
-# 1. Ép buộc giải phóng tài nguyên (Phong cách hệ thống cũ)
+# 1. Giải phóng tài nguyên tầng ứng dụng
 sudo killall -9 bluetoothd 2>/dev/null
 sudo systemctl stop bluetooth
 
-# 2. Tự động tìm đường dẫn (Bypass mọi phiên bản Ubuntu)
-if [ -f "/usr/libexec/bluetooth/bluetoothd" ]; then
-    BT_PATH="/usr/libexec/bluetooth/bluetoothd"
-else
-    BT_PATH="/usr/lib/bluetooth/bluetoothd"
-fi
-
-# 3. Cấu hình Service "Sạch" (Bypass tranh chấp HID)
-sudo sed -i "s|^ExecStart=.*|ExecStart=$BT_PATH -E --noplugin=input,hog|" /lib/systemd/system/bluetooth.service
-
-# 4. Kích hoạt lại Service
-sudo systemctl daemon-reload
-sudo systemctl start bluetooth
-sleep 2
-
-# 5. Cấu hình Class Combo (Kích hoạt Cursor cho Samsung)
-# Bước này phải Up interface trước khi ghi Class
-sudo hciconfig hci0 up
+# 2. PHÁ BĂNG CHIP (Quan trọng nhất)
+echo "⚡ Đang reset Kernel Driver..."
+sudo modprobe -r btusb 2>/dev/null
 sleep 1
-sudo hciconfig hci0 class 0x0005C0
+sudo modprobe btusb
+sleep 2 
 
-echo "✅ Hệ thống đã sẵn sàng!"
-hciconfig hci0 class | grep Class
-echo "👉 Bước tiếp theo: Chạy App Rust -> Bluetoothctl Connect."
+# 3. Tự động tìm đường dẫn bluetoothd
+BT_PATH=$(command -v bluetoothd)
+if [ -z "$BT_PATH" ]; then BT_PATH="/usr/lib/bluetooth/bluetoothd"; fi
+
+# 4. Sửa file Service
+sudo sed -i "s|^ExecStart=.*|ExecStart=$BT_PATH -E --noplugin=input,hog|" /lib/systemd/system/bluetooth.service
+sudo systemctl daemon-reload
+
+# 5. Thiết lập Interface & Class
+sudo hciconfig hci0 up
+sleep 2 # Chờ chip ổn định
+echo "📝 Đang nạp Class 0x0005C0..."
+sudo hciconfig hci0 class 0x0005C0 || echo "❌ Vẫn bị timeout, hãy rút/cắm lại USB Bluetooth nếu có thể."
+
+# 6. Khởi động lại Service
+sudo systemctl start bluetooth
+sleep 1
+
+echo "✅ Trạng thái Class hiện tại:"
+hciconfig hci0 class
